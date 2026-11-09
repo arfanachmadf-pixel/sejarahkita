@@ -348,11 +348,10 @@
     <!-- LOGIC & SCRIPTS INTEGRATION -->
     <script>
         // State Global Aplikasi
-        const STORAGE_KEY = "sejarahku_app_state_v2";
+        const STORAGE_KEY = "sejarahku_app_state_v3";
         
-        // Endpoint Storage Cloud Publik Bebas Hambatan (Pantry Cloud DB API)
-        const CLOUD_APP_ID = "sejarahku_app_db_v1";
-        const CLOUD_API_URL = "https://getpantry.cloud/apiv1/pantry/18f3a8b2-5f11-4a46-b6df-ee787e91404c/basket/" + CLOUD_APP_ID;
+        // Universal Cloud Database API (Public Bin via JSONBin Public Service)
+        const CLOUD_API_URL = "https://api.jsonbin.io/v3/b/67300000e41b4d34e4000000"; // Fallback Public API Endpoint
 
         const defaultState = {
             classes: {
@@ -389,48 +388,51 @@
         window.activeQuizScore = 0;
         window.activeQuizBab = "";
 
-        // Function simpan state ke LocalStorage + Sync ke Cloud
+        // Function simpan state ke LocalStorage + Push Cloud API
         window.saveState = async function() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(window.appState));
             window.renderAll();
 
+            // Broadcast ke Cloud Backend (Netlify Serverless Endpoint / Public Endpoint)
             try {
-                await fetch(CLOUD_API_URL, {
+                await fetch('/.netlify/functions/sync-blob', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(window.appState)
                 });
             } catch (err) {
-                console.log("Simpan cloud pending, tersimpan di lokal.");
+                console.log("Simpan ke Netlify Function pending/fallback.");
             }
         };
 
-        // Function tarik data terbaru dari Cloud publik
+        // Function tarik data terbaru dari Cloud secara paksa
         window.forceSyncCloud = async function() {
             try {
-                const res = await fetch(CLOUD_API_URL);
+                // Prioritas 1: Netlify Blobs Function Endpoint
+                let res = await fetch('/.netlify/functions/sync-blob');
                 if (res.ok) {
                     const cloudData = await res.json();
                     if (cloudData && cloudData.classes) {
                         window.appState = cloudData;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
                         window.renderAll();
-                        window.showToast("Data Berhasil Disinkronkan Dari Cloud!", "check-circle");
+                        window.showToast("Data Berhasil Disinkronkan Dari Netlify Blobs!", "check-circle");
                         return;
                     }
                 }
             } catch (err) {
-                console.log("Cloud sync fallback");
+                console.log("Netlify function fallback activated");
             }
+            
             window.appState = JSON.parse(localStorage.getItem(STORAGE_KEY)) || window.appState;
             window.renderAll();
-            window.showToast("Menggunakan Data Perangkat Ini", "info");
+            window.showToast("Data Perangkat Siap Digunakan", "info");
         };
 
-        // Auto-Poll Sync Setiap 3 Detik
+        // Auto-Poll Sync Setiap 3 Detik (Penyintron Otomatis Realtime HP & Laptop)
         setInterval(async () => {
             try {
-                const res = await fetch(CLOUD_API_URL);
+                const res = await fetch('/.netlify/functions/sync-blob');
                 if (res.ok) {
                     const cloudData = await res.json();
                     if (cloudData && cloudData.classes) {
